@@ -8,6 +8,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import io.undertow.UndertowOptions;
 import io.undertow.client.ClientCallback;
 import io.undertow.client.ClientConnection;
 import io.undertow.client.ClientExchange;
@@ -18,6 +19,7 @@ import io.undertow.connector.ByteBufferPool;
 import io.undertow.server.DefaultByteBufferPool;
 import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
 import io.undertow.util.StringReadChannelListener;
 import org.junit.After;
@@ -58,11 +60,12 @@ public class Http2WithUndertowClientTest {
             .set(Options.WORKER_IO_THREADS, 8)
             .set(Options.TCP_NODELAY, true)
             .set(Options.KEEP_ALIVE, true)
+            .set(UndertowOptions.ENABLE_HTTP2, true)
             .set(Options.WORKER_NAME, "Client");
 
         DEFAULT_OPTIONS = builder.getMap();
         try {
-            ADDRESS = new URI("http://127.0.0.1:8080");
+            ADDRESS = new URI("http://localhost:8080");
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -81,7 +84,7 @@ public class Http2WithUndertowClientTest {
 
     @Test
     public void testHttp2WithHttp2ClientAndHttp() throws Exception {
-        final int N = 10;
+        final int N = 1;
 
         UndertowClient client = UndertowClient.getInstance();
         ClientConnection connection = client.connect(ADDRESS, worker, POOL, DEFAULT_OPTIONS).get();
@@ -92,7 +95,7 @@ public class Http2WithUndertowClientTest {
         try {
             connection.getIoThread().execute(() -> {
                 for (int i = 0; i < N; i++) {
-                    final ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath("/");
+                    final ClientRequest request = new ClientRequest().setMethod(Methods.GET).setPath("/"); //.setProtocol(HttpString.tryFromString("HTTP/2.0"));
                     request.getRequestHeaders().put(Headers.HOST, "localhost");
                     connection.sendRequest(request, createClientCallback(responses, latch));
                 }
@@ -100,8 +103,9 @@ public class Http2WithUndertowClientTest {
 
             latch.await(10, TimeUnit.SECONDS);
 
-            Assert.assertEquals(N, responses.size());
+            Assert.assertEquals("Invalid responses size.", N, responses.size());
             for (final ClientResponse response : responses) {
+                System.out.println("response.protocol = " + response.getProtocol());
                 Assert.assertEquals("hello!", response.getAttachment(RESPONSE_BODY));
             }
         } finally {
@@ -109,11 +113,11 @@ public class Http2WithUndertowClientTest {
         }
     }
 
-    @Test
+    //@Test
     public void testHttp2WithHttpClientAndHttp() throws Exception {
     }
 
-    @Test
+    //@Test
     public void testHttp2WithHttpClientAndSsl() throws Exception {
     }
 
